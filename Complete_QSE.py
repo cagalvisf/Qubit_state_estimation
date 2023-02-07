@@ -13,7 +13,8 @@ from qiskit.quantum_info import state_fidelity
 from qiskit.transpiler.passes import RemoveBarriers
 from qiskit import IBMQ
 
-from qubit_state_estimators.interaction import IBMQ_U, U_matrix, T_matrix
+from qubit_state_estimation.interaction import IBMQ_U, U_matrix, T_matrix
+from qubit_state_estimation.estimators import linear_estimation, disc_ML_estimation
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -65,101 +66,6 @@ def Initialization(angles = [0,0,0]):
     Init_gate.name= "Initialization"
 
     return Init_gate
-
-def U_operator(A=[0,0,0,0,0,0],B=[0,0,0,0,0,0]):
-
-    ## A y B are vectors with the rotation angles of the meters A y B
-    qr = QuantumRegister(3)
-    qc = QuantumCircuit(qr)
-
-    #####==================================#####
-    #####======= Evolution operator =======#####
-    #####==================================#####
-
-
-
-    ## We apply rotations around a CNOT between the S and A qubits
-    qc.u(A[0],A[1],A[2],qr[0])
-    qc.cx(qr[1],qr[0])
-    qc.u(A[3],A[4],A[5],qr[0])
-
-
-    ## We change the basis of the S qubit
-    qc.h(qr[1])
-
-    ## Now, we apply rotations around a CNOT between the S and B qubits
-    qc.u(B[0],B[1],B[2],qr[2])
-    qc.cx(qr[1],qr[2])
-    qc.u(B[3],B[4],B[5],qr[2])
-
-    ## We revert the hadamard transformation over S
-    qc.h(qr[1])
-
-    U_gate=qc.to_gate()
-    U_gate.name="U Operator"
-
-    return U_gate
-
-def U_matrix(angles_a,angles_b):
-    ## Definimos los qubits sobre los que actúa la compuerta
-    A = QuantumRegister(1,'a')
-    S = QuantumRegister(1,'s')
-    B = QuantumRegister(1,'b')
-    cr = ClassicalRegister(3)
-
-    ## Ejecutamos la compuerta sobre estos regitros
-    qc = QuantumCircuit(A,S,B, cr)
-    qc.append(U_operator(angles_a,angles_b),[A,S,B])
-
-    ## Usamos el simulador de IBM para obtener la matriz asociada al operador
-    backend = BasicAer.get_backend('unitary_simulator')
-    job = execute(qc, backend)
-    U = job.result().get_unitary(qc)
-    return U
-
-def T_matrix(U):
-
-    ## we define the U_{ij} operators
-    U_00 = np.matrix(np.array([[U[0,0],U[0,2]],[U[2,0],U[2,2]]]) + np.array([[U[0,1],U[0,3]],[U[2,1],U[2,3]]]) + np.array([[U[0,4],U[0,6]],[U[2,4],U[2,6]]]) + np.array([[U[0,5],U[0,7]],[U[2,5],U[2,7]]]))
-    U_01 = np.matrix(np.array([[U[1,0],U[1,2]],[U[3,0],U[3,2]]]) + np.array([[U[1,1],U[1,3]],[U[3,1],U[3,3]]]) + np.array([[U[1,4],U[1,6]],[U[3,4],U[3,6]]]) + np.array([[U[1,5],U[1,7]],[U[3,5],U[3,7]]]))
-    U_10 = np.matrix(np.array([[U[4,0],U[4,2]],[U[6,0],U[6,2]]]) + np.array([[U[4,1],U[4,3]],[U[6,1],U[6,3]]]) + np.array([[U[4,4],U[4,6]],[U[6,4],U[6,6]]]) + np.array([[U[4,5],U[4,7]],[U[6,5],U[6,7]]]))
-    U_11 = np.matrix(np.array([[U[5,0],U[5,2]],[U[7,0],U[7,2]]]) + np.array([[U[5,1],U[5,3]],[U[7,1],U[7,3]]]) + np.array([[U[5,4],U[5,6]],[U[7,4],U[7,6]]]) + np.array([[U[5,5],U[5,7]],[U[7,5],U[7,7]]]))
-
-    ## and theyr adjoints
-    U_00d = U_00.getH()
-    U_01d = U_01.getH()
-    U_10d = U_10.getH()
-    U_11d = U_11.getH()
-
-    ## The auxiliary operators A and B
-    A = 1/16*(np.matmul(U_00d,U_10) + np.matmul(U_01d,U_11) + np.matmul(U_10d,U_00) + np.matmul(U_11d,U_01))
-    B = 1/16*(np.matmul(U_00d,U_01) + np.matmul(U_01d,U_00) + np.matmul(U_10d,U_11) + np.matmul(U_11d,U_10))
-    C = 1/16*(np.matmul(U_00d,U_11) + np.matmul(U_01d,U_10) + np.matmul(U_10d,U_01) + np.matmul(U_11d,U_00))
-
-    ## We define the Pauli matrices and the identiry
-    X = np.matrix([[0,1],[1,0]])
-    Y = np.matrix([[0,-j],[j,0]])
-    Z = np.matrix([[1,0],[0,-1]])
-    I = np.matrix([[1,0],[0,1]])
-
-    ## We evaluate the components of the a_\mu, b_\mu and c_\mu vectors
-    a0 = 0.5*np.trace(np.matmul(A,I))
-    a1 = 0.5*np.trace(np.matmul(A,X))
-    a2 = 0.5*np.trace(np.matmul(A,Y))
-    a3 = 0.5*np.trace(np.matmul(A,Z))
-
-    b0 = 0.5*np.trace(np.matmul(B,I))
-    b1 = 0.5*np.trace(np.matmul(B,X))
-    b2 = 0.5*np.trace(np.matmul(B,Y))
-    b3 = 0.5*np.trace(np.matmul(B,Z))
-
-    c0 = 0.5*np.trace(np.matmul(C,I))
-    c1 = 0.5*np.trace(np.matmul(C,X))
-    c2 = 0.5*np.trace(np.matmul(C,Y))
-    c3 = 0.5*np.trace(np.matmul(C,Z))
-
-    T = np.array([[0.25+a0+b0+c0, a1+b1+c1, a2+b2+c2, a3+b3+c3],[0.25+a0-b0-c0, a1-b1-c1, a2-b2-c2, a3-b3-c3],[0.25-a0+b0-c0, -a1+b1-c1, -a2+b2-c2, -a3+b3-c3],[0.25-a0-b0+c0, -a1-b1+c1, -a2-b2+c2, -a3-b3+c3]])
-    return T
 
 def tg_circuit(angles_i):
     ## We define the tomography circuit as a function
@@ -231,25 +137,7 @@ def init_ang_to_bloch_vector(angles):
 
     return np.round(s,2)
 
-def disc_ML_est(mm,freq):
-    ## Function for maximun-likeihood estimation
-    ## mm = measurement matrix
-    ## freq = probabilities from the experiment
-    mm = np.array(mm)
-    se = np.array([1.0,0.0,0.0,0.0])
-    nint = 10000
-    for _ in range(1,nint):
-        pe = np.dot(mm,se)
-
-        re = np.dot(np.transpose(mm),(freq/pe))
-
-        ge = re[1]**2 + re[2]**2 + re[3]**2 - re[0]**2
-        se[1] = (2*re[1]-se[1]*ge)/(2*re[0]+ge)
-        se[2] = (2*re[2]-se[2]*ge)/(2*re[0]+ge)
-        se[3] = (2*re[3]-se[3]*ge)/(2*re[0]+ge)
-    return se
-
-def IBM_sim_probs(angles_i, device="simulator"):
+def simulation(angles_i, device="simulator"):
     tomography_circuit = tg_circuit(angles_i)
 
     print("Running on backend = ", device)
@@ -344,32 +232,6 @@ def IBM_sim_probs(angles_i, device="simulator"):
 
     return p
 
-def qubit_state_estimation(T, p, est="linear"):
-    ## Estimation by linear inversion
-    if est == "linear":
-        s = np.array(np.matmul(np.linalg.inv(T),p), ndmin=0)
-        s = np.reshape(s,4)
-        
-        s1 = s[1].real
-        s2 = s[2].real
-        s3 = s[3].real
-
-        s = [s1, s2, s3]
-        
-        return np.array(s)
-    ## Maximum likelihood estimation
-    elif est == "ml":
-        s = disc_ML_est(T, p)
-        s = np.reshape(s,4)
-        
-        s1=s[1].real
-        s2=s[2].real
-        s3=s[3].real
-
-        s = [s1, s2, s3]
-        
-        return np.array(s)
-
 
 ## Number of estimations for each state
 N=5
@@ -404,12 +266,12 @@ for a_i in angles:
     
     for n in range(N):
         
-        p_IBM = IBM_sim_probs(a_i, device=device)
+        p_IBM = simulation(a_i, device=device)
 
         s_real = init_ang_to_bloch_vector(a_i)
         ## Estimation of the state, can be "linear" or "ml"
-        s_l_est  = qubit_state_estimation(T, p_IBM, est="linear")
-        s_ml_est = qubit_state_estimation(T, p_IBM, est="ml")
+        s_l_est  = linear_estimation(T, p_IBM)
+        s_ml_est = disc_ML_estimation(T, p_IBM)
 
         state_ideal  = bloch_vector_to_state(s_real)
         state_l_est  = bloch_vector_to_state(s_l_est)
@@ -425,12 +287,9 @@ for a_i in angles:
 
         print('Fidelity linear estimation: ',fidelity_l)
         print('Fidelity ML estimation: ',fidelity_ml)
-
+        ## Columns: State, P_00, P_01, P_10, P_11, s_x, s_y, s_z, se_l_x, se_l_y, se_l_z, fidelity_l, se_ml_x, se_ml_y, se_ml_z, fidelity_ml
         file.write("%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s  \n" % 
                 (states[state], p_IBM[0], p_IBM[1],p_IBM[2], p_IBM[3], s_real[0],s_real[1],s_real[2], s_l_est[0],s_l_est[1],s_l_est[2], fidelity_l, s_ml_est[0], s_ml_est[1], s_ml_est[2], fidelity_ml))
-        
-        ## Columns: State, P_00, P_01, P_10, P_11, s_x, s_y, s_z, se_l_x, se_l_y, se_l_z, fidelity_l, se_ml_x, se_ml_y, se_ml_z, fidelity_ml
-
         
         print('State: ', states[state], 'run: ',n+1,' Finished.')
     state += 1
