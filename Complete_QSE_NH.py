@@ -13,8 +13,8 @@ from qiskit.quantum_info import state_fidelity
 from qiskit.transpiler.passes import RemoveBarriers
 from qiskit import IBMQ
 
-from qubit_state_estimation.interaction import IBMQ_U, U_matrix, T_matrix
-from qubit_state_estimation.estimators import linear_estimation, disc_ML_estimation
+from QSE.interaction import N_H_U, N_H_U_matrix, N_H_T_matrix
+from QSE.estimators import linear_estimation, disc_ML_estimation
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,6 +26,7 @@ X = np.array([[0,1],[1,0]])
 Y = np.array([[0,-j],[j,0]])
 Z = np.array([[1,0],[0,-1]])
 I = np.array([[1,0],[0,1]])
+
 shots = 1024
 def get_args():
 
@@ -63,8 +64,6 @@ def Initialization(angles = [0,0,0]):
     qc = QuantumCircuit(qr)
 
     #Initialice qubits
-    qc.h(qr[0])                                    #A meter
-    qc.h(qr[2])                                    #B meter
     qc.u(angles[0],angles[1],angles[2],[qr[1]])    #System
 
     Init_gate = qc.to_gate()
@@ -80,8 +79,8 @@ def tg_circuit(angles_i):
     cr = ClassicalRegister(3)
     
     ## We use the best values of the angles for A and B
-    th_a1,phi_a1,lam_a1,th_b1,phi_b1,lam_b1 = 0.5871626,  1.57737493, 2.52063619, 0.70004151, 4.30553732, 3.45993977
-    th_a2,phi_a2,lam_a2,th_b2,phi_b2,lam_b2 = 2.55283129, 1.93819982, 0.30976956, 0.67288561, 6.47455126, 4.4695403
+    th_a1,phi_a1,lam_a1,th_b1,phi_b1,lam_b1 = 2.42432828e+00, 4.98434450e-01, 1.73790447e+00, 7.71223044e-07,8.96988329e-01, 3.83810361e+00
+    th_a2,phi_a2,lam_a2,th_b2,phi_b2,lam_b2 = 1.18045199e+00, 2.97827807e+00,  4.71238856e+00, 6.65360977e-07, 3.38710520e+00, 1.14413075e+00
     
     angles_a=[th_a1,phi_a1,lam_a1,th_a2,phi_a2,lam_a2]
     angles_b=[th_b1,phi_b1,lam_b1,th_b2,phi_b2,lam_b2]
@@ -93,11 +92,8 @@ def tg_circuit(angles_i):
     tomography_circuit.append(Initialization(angles_i),[A,S,B])
 
     ## Apply the evolution operator
-    tomography_circuit.append(IBMQ_U(angles_a,angles_b),[A,S,B])
+    tomography_circuit.append(N_H_U(angles_a,angles_b),[A,S,B])
 
-    ## Change of the measurement basis
-    tomography_circuit.h(A)                     #A
-    tomography_circuit.h(B)                     #B
 
     ## Measure
     tomography_circuit.measure(A,cr[0])         #A
@@ -140,8 +136,9 @@ def density(s):
 def fidelity(s1, s2):  
     rho1 = density(s1)
     rho2 = density(s2)
-    
+
     return state_fidelity(rho1,rho2, validate=False)
+
 def init_ang_to_bloch_vector(angles):
 
     th, phi, lam = angles
@@ -251,16 +248,16 @@ N=5
 args = get_args()
 device = args.backend
 
-th_a1,phi_a1,lam_a1,th_b1,phi_b1,lam_b1 = 0.5871626,  1.57737493, 2.52063619, 0.70004151, 4.30553732, 3.45993977
-th_a2,phi_a2,lam_a2,th_b2,phi_b2,lam_b2 = 2.55283129, 1.93819982, 0.30976956, 0.67288561, 6.47455126, 4.4695403
+th_a1,phi_a1,lam_a1,th_b1,phi_b1,lam_b1 = 2.42432828e+00, 4.98434450e-01, 1.73790447e+00, 7.71223044e-07,8.96988329e-01, 3.83810361e+00
+th_a2,phi_a2,lam_a2,th_b2,phi_b2,lam_b2 = 1.18045199e+00, 2.97827807e+00,  4.71238856e+00, 6.65360977e-07, 3.38710520e+00, 1.14413075e+00
 
 angles_a=[th_a1,phi_a1,lam_a1,th_a2,phi_a2,lam_a2]
 angles_b=[th_b1,phi_b1,lam_b1,th_b2,phi_b2,lam_b2]
 
-U = U_matrix(angles_a,angles_b)
-T = T_matrix(U)
+U = N_H_U_matrix(angles_a,angles_b)
+T = N_H_T_matrix(U)
 ## File where the results will be stored
-file = open("data/"+args.backend+"_data.txt","a")
+file = open("data/"+args.backend+"_data_nh.txt","a")
 
 ## Initial angles for Pauli matrices eigenstates 
 ang_z0 = [0,0,0]
